@@ -30,6 +30,8 @@ async def get_channels_by_subscribe_urls(
     """
     Get the channels by subscribe urls
     """
+    if whitelist:
+        urls.sort(key=lambda url: whitelist.index(url) if url in whitelist else len(whitelist))
     subscribe_results = {}
     subscribe_urls_len = len(urls)
     pbar = tqdm_asyncio(
@@ -43,20 +45,22 @@ async def get_channels_by_subscribe_urls(
             f"正在获取{mode_name}源, 共{subscribe_urls_len}个{mode_name}源",
             0,
         )
-    session = Session()
     hotel_name = constants.origin_map["hotel"]
     multicast_name = constants.origin_map["multicast"]
     subscribe_name = constants.origin_map["subscribe"]
 
-    def process_subscribe_channels(subscribe_info):
+    def process_subscribe_channels(subscribe_info: str | dict) -> defaultdict:
+        region = ""
+        url_type = ""
         if (multicast or hotel) and isinstance(subscribe_info, dict):
             region = subscribe_info.get("region")
-            type = subscribe_info.get("type", "")
+            url_type = subscribe_info.get("type", "")
             subscribe_url = subscribe_info.get("url")
         else:
             subscribe_url = subscribe_info
         channels = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         in_whitelist = whitelist and (subscribe_url in whitelist)
+        session = Session()
         try:
             response = None
             try:
@@ -78,11 +82,10 @@ async def get_channels_by_subscribe_urls(
                 data = get_name_url(
                     content,
                     pattern=(
-                        constants.m3u_pattern
+                        constants.multiline_m3u_pattern
                         if "#EXTM3U" in content
-                        else constants.txt_pattern
-                    ),
-                    multiline=True,
+                        else constants.multiline_txt_pattern
+                    )
                 )
                 for item in data:
                     name = item["name"]
@@ -100,28 +103,29 @@ async def get_channels_by_subscribe_urls(
                                 )
                             )
                             if in_whitelist:
-                                info = "!" + info
+                                info = "!"
                             url = add_url_info(url, info)
                         url = format_url_with_cache(
                             url, cache=subscribe_url if (multicast or hotel) else None
                         )
-                        value = url if multicast else (url, None, None)
+                        value = url if multicast else {"url": url}
                         name = format_channel_name(name)
                         if name in channels:
                             if multicast:
-                                if value not in channels[name][region][type]:
-                                    channels[name][region][type].append(value)
+                                if value not in channels[name][region][url_type]:
+                                    channels[name][region][url_type].append(value)
                             elif value not in channels[name]:
                                 channels[name].append(value)
                         else:
                             if multicast:
-                                channels[name][region][type] = [value]
+                                channels[name][region][url_type] = [value]
                             else:
                                 channels[name] = [value]
         except Exception as e:
             if error_print:
                 print(f"Error on {subscribe_url}: {e}")
         finally:
+            session.close()
             pbar.update()
             remain = subscribe_urls_len - pbar.n
             if callback:
@@ -138,6 +142,5 @@ async def get_channels_by_subscribe_urls(
         ]
         for future in futures:
             subscribe_results = merge_objects(subscribe_results, future.result())
-    session.close()
     pbar.close()
     return subscribe_results
