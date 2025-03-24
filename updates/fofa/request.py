@@ -135,7 +135,7 @@ async def get_channels_by_fofa(urls=None, multicast=False, callback=None):
                     multicast_result = [(url, None, None) for url in urls]
                     results[region][type] = multicast_result
                 else:
-                    with ThreadPoolExecutor(max_workers=100) as executor:
+                    with ThreadPoolExecutor(max_workers=10) as executor:
                         futures = [
                             executor.submit(
                                 process_fofa_json_url,
@@ -215,16 +215,7 @@ def process_fofa_json_url(url, region, open_sort, hotel_name="酒店源"):
                             item_name = format_channel_name(item.get("name"))
                             item_url = item.get("url").strip()
                             if item_name and item_url:
-                                total_url = (
-                                    add_url_info(
-                                        f"{url}{item_url}",
-                                        f"{region}{hotel_name}-cache:{url}",
-                                    )
-                                    if open_sort
-                                    else add_url_info(
-                                        f"{url}{item_url}", f"{region}{hotel_name}"
-                                    )
-                                )
+                                total_url = add_url_info(f"{url}{item_url}", f"{region}{hotel_name}")
                                 data = {"url": total_url}
                                 if item_name not in channels:
                                     channels[item_name] = [data]

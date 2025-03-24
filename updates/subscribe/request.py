@@ -12,7 +12,6 @@ from utils.retry import retry_func
 from utils.tools import (
     merge_objects,
     get_pbar_remaining,
-    format_url_with_cache,
     add_url_info,
     get_name_url
 )
@@ -105,9 +104,6 @@ async def get_channels_by_subscribe_urls(
                             if in_whitelist:
                                 info = "!"
                             url = add_url_info(url, info)
-                        url = format_url_with_cache(
-                            url, cache=subscribe_url if (multicast or hotel) else None
-                        )
                         value = url if multicast else {"url": url}
                         name = format_channel_name(name)
                         if name in channels:
@@ -135,7 +131,7 @@ async def get_channels_by_subscribe_urls(
                 )
             return channels
 
-    with ThreadPoolExecutor(max_workers=100) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
             executor.submit(process_subscribe_channels, subscribe_url)
             for subscribe_url in urls
